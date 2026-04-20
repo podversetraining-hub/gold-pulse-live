@@ -115,18 +115,11 @@ export function PriceChart({ history, snapshot }: Props) {
     }
     priceLinesRef.current = [];
 
-    const sig = snapshot.signal;
     const add = (price: number, color: string, title: string, style: LineStyle = LineStyle.Solid, width: 1 | 2 | 3 | 4 = 2) => {
       const pl = series.createPriceLine({ price, color, lineWidth: width, lineStyle: style, axisLabelVisible: true, title });
       priceLinesRef.current.push(pl);
     };
-    if (sig.side !== "NEUTRAL") {
-      add(sig.entry, "#f0c87a", "ENTRY", LineStyle.Solid, 2);
-      add(sig.stopLoss, "#ef4444", "SL", LineStyle.Dashed, 2);
-      add(sig.takeProfit1, "#22c55e", "TP1", LineStyle.Dashed, 1);
-      add(sig.takeProfit2, "#16a34a", "TP2", LineStyle.Dashed, 2);
-      add(sig.takeProfit3, "#15803d", "TP3", LineStyle.Dashed, 1);
-    }
+    // Only show pivot/structural levels — no entry / SL / TP
     const m15 = snapshot.byTf.M15;
     if (m15?.r1) add(m15.r1, "rgba(239,68,68,0.55)", "R1", LineStyle.Dotted, 1);
     if (m15?.s1) add(m15.s1, "rgba(34,197,94,0.55)", "S1", LineStyle.Dotted, 1);
