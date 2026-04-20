@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { clsx, fmtPrice } from "@/lib/gold/format";
 import type { MarketSnapshot } from "@/lib/gold/types";
+import logoUrl from "@/assets/logo.png";
 
 interface Props {
   snapshot: MarketSnapshot;
@@ -30,15 +31,13 @@ export function PriceHeader({ snapshot, history }: Props) {
   return (
     <div className="bg-gradient-panel shadow-panel border-b border-gold/30 px-6 py-3 flex items-center gap-6">
       {/* Brand */}
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <div className="w-12 h-12 rounded-xl bg-gradient-gold shadow-gold flex items-center justify-center text-background font-black text-2xl">
-            Au
-          </div>
+      <div className="flex items-center gap-4">
+        <div className="relative flex items-center bg-white/95 rounded-xl px-3 py-2 shadow-gold">
+          <img src={logoUrl} alt="Arab Global Securities" className="h-10 w-auto object-contain" />
           <div className="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-bull live-dot border-2 border-background" />
         </div>
         <div>
-          <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground leading-none">Live Stream</div>
+          <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground leading-none">Live Stream · Arab Global Securities</div>
           <div className="text-xl font-black text-gold-shine leading-tight tracking-tight">GOLD · XAUUSD</div>
         </div>
       </div>
