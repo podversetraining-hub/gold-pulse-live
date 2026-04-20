@@ -22,40 +22,40 @@ export function ReasoningPanel({ snapshot }: Props) {
   }, [snapshot, signal.side]);
 
   return (
-    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-4 flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm uppercase tracking-[0.25em] text-gold-shine font-bold">AI Reasoning</div>
+    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-3 flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between mb-2 flex-shrink-0">
+        <div className="text-xs uppercase tracking-[0.25em] text-gold-shine font-bold">AI Reasoning</div>
         <div className="text-[10px] text-muted-foreground uppercase">Live confluence</div>
       </div>
 
-      <ul className="space-y-1.5 mb-3">
+      <ul className="space-y-1 mb-2 overflow-y-auto flex-1 min-h-0 pr-1">
         {signal.reasoning.map((r, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm">
-            <span className="text-gold mt-0.5">◆</span>
+          <li key={i} className="flex items-start gap-2 text-[13px] leading-snug">
+            <span className="text-gold mt-0.5 flex-shrink-0">◆</span>
             <span className="text-foreground/90">{r}</span>
           </li>
         ))}
       </ul>
 
       {topVotes.length > 0 && (
-        <>
+        <div className="flex-shrink-0 pt-2 border-t border-border/60">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Top supporting signals</div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {topVotes.map((v, i) => (
               <span
                 key={i}
                 className={clsx(
-                  "text-[11px] px-2 py-1 rounded-md border font-semibold",
+                  "text-[10px] px-1.5 py-0.5 rounded border font-semibold",
                   signal.side === "BUY" && "bg-bull/10 border-bull/40 text-bull",
                   signal.side === "SELL" && "bg-bear/10 border-bear/40 text-bear",
                 )}
                 title={v.detail}
               >
-                {v.tf} · {v.name}
+                {v.tf}·{v.name}
               </span>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

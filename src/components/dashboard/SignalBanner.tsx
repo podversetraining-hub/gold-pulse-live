@@ -29,23 +29,23 @@ export function SignalBanner({ signal, trendStrength }: Props) {
   const arrow = isBuy ? "▲" : isSell ? "▼" : "■";
 
   return (
-    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-6 flex items-center gap-8">
-      {/* Side badge — now the hero */}
+    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-4 flex items-center gap-6">
+      {/* Side badge — hero */}
       <div
         className={clsx(
-          "flex items-center justify-center gap-5 rounded-xl px-10 py-6 min-w-[420px] shadow-gold",
+          "flex items-center justify-center gap-4 rounded-xl px-7 py-4 min-w-[360px] shadow-gold",
           sideBg,
         )}
       >
-        <div className="text-6xl font-black text-white drop-shadow leading-none">{arrow}</div>
+        <div className="text-5xl font-black text-white drop-shadow leading-none">{arrow}</div>
         <div className="flex flex-col">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/80">Direction</div>
-          <div className="text-7xl font-black tracking-tight text-white drop-shadow leading-none">
+          <div className="text-[10px] uppercase tracking-[0.35em] text-white/80">Direction</div>
+          <div className="text-5xl font-black tracking-tight text-white drop-shadow leading-none">
             {label}
           </div>
           <div
             className={clsx(
-              "mt-2 inline-block self-start px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-widest",
+              "mt-1.5 inline-block self-start px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest",
               tierStyles[signal.tier],
             )}
           >
@@ -55,7 +55,7 @@ export function SignalBanner({ signal, trendStrength }: Props) {
       </div>
 
       {/* Confidence + confluence */}
-      <div className="flex-1 grid grid-cols-3 gap-6">
+      <div className="flex-1 grid grid-cols-3 gap-5">
         <Stat
           label="Confidence"
           value={`${signal.confidence}%`}
