@@ -34,16 +34,21 @@ function LiveDashboard() {
           <>
             <PriceHeader snapshot={snapshot} history={history} />
 
-            <div className="flex-1 grid gap-3 p-3 min-h-0" style={{ gridTemplateColumns: "320px 1fr 360px", gridTemplateRows: "auto 1fr auto" }}>
+            <div
+              className="flex-1 grid gap-3 p-3 min-h-0"
+              style={{ gridTemplateColumns: "360px 1fr 400px", gridTemplateRows: "auto 1fr auto" }}
+            >
               {/* Top row: signal banner spans all 3 columns */}
               <div className="col-span-3">
                 <SignalBanner signal={snapshot.signal} trendStrength={snapshot.trendStrength} />
               </div>
 
               {/* Middle row */}
-              <div className="min-h-0 flex flex-col gap-3">
+              <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
                 <TimeframeRail biases={snapshot.biases} />
-                <ReasoningPanel snapshot={snapshot} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ReasoningPanel snapshot={snapshot} />
+                </div>
               </div>
 
               <div className="min-h-0 bg-gradient-panel shadow-panel rounded-2xl border border-border/60 overflow-hidden relative">
@@ -57,9 +62,13 @@ function LiveDashboard() {
                 <PriceChart history={history} snapshot={snapshot} />
               </div>
 
-              <div className="min-h-0 flex flex-col gap-3">
-                <ConfluenceStack snapshot={snapshot} />
-                <KeyLevels snapshot={snapshot} />
+              <div className="min-h-0 flex flex-col gap-3 overflow-hidden">
+                <div className="flex-shrink-0">
+                  <ConfluenceStack snapshot={snapshot} />
+                </div>
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <KeyLevels snapshot={snapshot} />
+                </div>
               </div>
             </div>
 
