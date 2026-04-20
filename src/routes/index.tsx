@@ -12,10 +12,10 @@ import { ReasoningPanel } from "@/components/dashboard/ReasoningPanel";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "GOLD XAUUSD · 24/7 Live AI Signal Stream" },
-      { name: "description", content: "Live gold (XAUUSD) signals, multi-timeframe confluence, institutional levels, 24/7 stream-ready dashboard." },
-      { property: "og:title", content: "GOLD XAUUSD · 24/7 Live AI Signal Stream" },
-      { property: "og:description", content: "Real-time gold analysis with 80+ indicators across 7 timeframes. Pro signal engine with entry, SL, TP." },
+      { title: "GOLD XAUUSD · 24/7 Live Direction Signal" },
+      { name: "description", content: "Live gold (XAUUSD) directional bias — BUY / SELL / NEUTRAL — multi-timeframe confluence across 7 timeframes, 24/7 stream-ready." },
+      { property: "og:title", content: "GOLD XAUUSD · 24/7 Live Direction Signal" },
+      { property: "og:description", content: "Real-time gold direction with 80+ indicators across 7 timeframes. Pure directional signal: BUY / SELL / NEUTRAL." },
     ],
   }),
   component: LiveDashboard,
