@@ -27,22 +27,22 @@ export function ConfluenceStack({ snapshot }: Props) {
   if (h4?.alligatorState) push("H4 Alligator", h4.alligatorState.replace("_", " "), h4.alligatorState.includes("UP") ? "bull" : h4.alligatorState.includes("DOWN") ? "bear" : "neutral");
 
   return (
-    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm uppercase tracking-[0.25em] text-gold-shine font-bold">Institutional Confluence</div>
+    <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs uppercase tracking-[0.25em] text-gold-shine font-bold">Institutional Confluence</div>
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-1">
         {items.map((it) => (
           <div
             key={it.label}
             className={clsx(
-              "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs border",
+              "flex items-center justify-between rounded px-2 py-1 text-[11px] border",
               it.tone === "bull" && "bg-bull/10 border-bull/40 text-bull",
               it.tone === "bear" && "bg-bear/10 border-bear/40 text-bear",
               it.tone === "neutral" && "bg-panel-2 border-border text-muted-foreground",
             )}
           >
-            <span className="font-semibold">{it.label}</span>
+            <span className="font-semibold truncate">{it.label}</span>
             <span className="font-mono tabular-nums">{it.value}</span>
           </div>
         ))}
@@ -50,16 +50,16 @@ export function ConfluenceStack({ snapshot }: Props) {
 
       {/* Key SMC swings */}
       {(d1?.swingHigh || d1?.swingLow) && (
-        <div className="mt-3 pt-3 border-t border-border/60 grid grid-cols-2 gap-2 text-xs">
+        <div className="mt-2 pt-2 border-t border-border/60 grid grid-cols-2 gap-2 text-[11px]">
           {d1?.swingHigh && (
             <div className="flex justify-between text-bear">
-              <span className="text-muted-foreground">Swing High D1</span>
+              <span className="text-muted-foreground">Swing H D1</span>
               <span className="font-mono">{fmtPrice(d1.swingHigh)}</span>
             </div>
           )}
           {d1?.swingLow && (
             <div className="flex justify-between text-bull">
-              <span className="text-muted-foreground">Swing Low D1</span>
+              <span className="text-muted-foreground">Swing L D1</span>
               <span className="font-mono">{fmtPrice(d1.swingLow)}</span>
             </div>
           )}
