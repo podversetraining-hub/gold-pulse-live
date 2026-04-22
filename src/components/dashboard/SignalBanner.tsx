@@ -1,9 +1,12 @@
 import { clsx } from "@/lib/gold/format";
-import type { TradeSignal } from "@/lib/gold/types";
+import type { MarketSnapshot, TradeSignal } from "@/lib/gold/types";
+import { useEffect, useState } from "react";
 
 interface Props {
   signal: TradeSignal;
   trendStrength: number;
+  snapshot: MarketSnapshot;
+  feedStatus: "loading" | "live" | "error" | "stale";
 }
 
 const tierStyles: Record<TradeSignal["tier"], string> = {
@@ -13,7 +16,7 @@ const tierStyles: Record<TradeSignal["tier"], string> = {
   NEUTRAL: "bg-panel-2 text-muted-foreground border border-border",
 };
 
-export function SignalBanner({ signal, trendStrength }: Props) {
+export function SignalBanner({ signal, trendStrength, snapshot, feedStatus }: Props) {
   const isBuy = signal.side === "BUY";
   const isSell = signal.side === "SELL";
   const isNeutral = signal.side === "NEUTRAL";
@@ -28,6 +31,19 @@ export function SignalBanner({ signal, trendStrength }: Props) {
   const label = isNeutral ? "NEUTRAL" : signal.side;
   const arrow = isBuy ? "▲" : isSell ? "▼" : "■";
 
+  // Live "held for" timer
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const heldSec = signal.timestamp ? Math.max(0, Math.floor((now - signal.timestamp) / 1000)) : 0;
+  const heldStr = heldSec >= 60 ? `${Math.floor(heldSec / 60)}m ${heldSec % 60}s` : `${heldSec}s`;
+
+  const pendingDifferent = snapshot.pendingSide !== signal.side;
+  const confirmRemaining = Math.max(0, snapshot.ticksRequired - snapshot.pendingTicks);
+  const isStale = feedStatus === "stale" || snapshot.feedAgeSec > 60;
+
   return (
     <div className="bg-gradient-panel shadow-panel rounded-2xl border border-border/60 p-4 flex items-center gap-6">
       {/* Side badge — hero */}
@@ -39,17 +55,32 @@ export function SignalBanner({ signal, trendStrength }: Props) {
       >
         <div className="text-5xl font-black text-white drop-shadow leading-none">{arrow}</div>
         <div className="flex flex-col">
-          <div className="text-[10px] uppercase tracking-[0.35em] text-white/80">Direction</div>
+          <div className="text-[10px] uppercase tracking-[0.35em] text-white/80 flex items-center gap-2">
+            <span>Confirmed Direction</span>
+            {!isNeutral && <span className="px-1.5 py-0.5 rounded bg-white/20 text-[9px]">LOCKED · {heldStr}</span>}
+          </div>
           <div className="text-5xl font-black tracking-tight text-white drop-shadow leading-none">
             {label}
           </div>
-          <div
-            className={clsx(
-              "mt-1.5 inline-block self-start px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest",
-              tierStyles[signal.tier],
+          <div className="mt-1.5 flex items-center gap-1.5">
+            <div
+              className={clsx(
+                "inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest",
+                tierStyles[signal.tier],
+              )}
+            >
+              {signal.tier}
+            </div>
+            {pendingDifferent && (
+              <div className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-white/15 text-white border border-white/30">
+                Pending {snapshot.pendingSide} · {confirmRemaining} ticks
+              </div>
             )}
-          >
-            {signal.tier}
+            {isStale && (
+              <div className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest bg-bear/30 text-white border border-bear/60">
+                Feed {snapshot.feedAgeSec}s old
+              </div>
+            )}
           </div>
         </div>
       </div>
