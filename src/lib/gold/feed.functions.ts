@@ -24,7 +24,7 @@ const BROWSER_HEADERS: Record<string, string> = {
 async function tryFetch(url: string): Promise<string | null> {
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 4500);
+    const timer = setTimeout(() => ctrl.abort(), 3500);
     const res = await fetch(url, { headers: BROWSER_HEADERS, signal: ctrl.signal });
     clearTimeout(timer);
     if (!res.ok) return null;

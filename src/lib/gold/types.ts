@@ -134,4 +134,10 @@ export interface MarketSnapshot {
   volatility: number; // ATR M15
   marketRegime: "TRENDING_UP" | "TRENDING_DOWN" | "RANGING" | "VOLATILE";
   fetchedAt: number;
+  rawScore: number; // raw aggregate score before smoothing
+  smoothedScore: number; // EMA-smoothed score
+  pendingSide: SignalSide; // raw side this tick (may differ from confirmed signal.side)
+  pendingTicks: number; // how many ticks the pending side has persisted
+  ticksRequired: number; // how many ticks needed to confirm a flip
+  feedAgeSec: number; // seconds since feed timestamp
 }
