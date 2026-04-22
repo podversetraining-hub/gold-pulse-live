@@ -10,6 +10,41 @@ const TF_WEIGHTS: Record<TF, number> = {
   M1: 0.5,
 };
 
+// Hysteresis & confirmation thresholds — calibrated for stable, confirmed signals.
+// ENTRY: must cross strong band to flip into a side.
+// EXIT: must fall back below weak band to drop to NEUTRAL — prevents oscillation.
+const ENTER_SCORE = 22; // raw smoothed |score| needed to ENTER BUY/SELL
+const EXIT_SCORE = 8;   // raw smoothed |score| under which active side reverts to NEUTRAL
+const MIN_CONFLUENCE_ENTER = 3; // at least 3 of 7 TFs aligned to enter
+const SMOOTHING_ALPHA = 0.35; // EMA factor for score smoothing (higher = faster react)
+const TICKS_TO_CONFIRM_FLIP = 4; // consecutive matching ticks before changing confirmed side
+const TICKS_TO_CONFIRM_NEUTRAL = 6; // harder to drop a confirmed side back to NEUTRAL
+
+// Signal engine state — survives across ticks to enforce confirmation logic.
+export interface SignalEngineState {
+  confirmedSide: SignalSide;
+  confirmedTier: TradeSignal["tier"];
+  confirmedSince: number; // timestamp when confirmed side was set
+  pendingSide: SignalSide;
+  pendingTicks: number;
+  smoothedScore: number;
+  lastFeedTime: string; // last raw feed timestamp string seen
+  lastChangeAt: number; // timestamp of last confirmed flip
+}
+
+export function createEngineState(): SignalEngineState {
+  return {
+    confirmedSide: "NEUTRAL",
+    confirmedTier: "NEUTRAL",
+    confirmedSince: 0,
+    pendingSide: "NEUTRAL",
+    pendingTicks: 0,
+    smoothedScore: 0,
+    lastFeedTime: "",
+    lastChangeAt: 0,
+  };
+}
+
 function vote(name: string, side: SignalSide, weight: number, detail: string): IndicatorVote {
   return { name, side, weight, detail };
 }
@@ -137,7 +172,10 @@ export function biasForTimeframe(d: TFData): TFBias {
   return { tf: d.tf, side, score, votes };
 }
 
-export function buildSnapshot(parsed: { pair: string; price: number; time: string; byTf: Partial<Record<TF, TFData>> }): MarketSnapshot {
+export function buildSnapshot(
+  parsed: { pair: string; price: number; time: string; byTf: Partial<Record<TF, TFData>> },
+  state: SignalEngineState,
+): MarketSnapshot {
   const tfs: TF[] = ["D1", "H4", "H1", "M30", "M15", "M5", "M1"];
   const byTf = parsed.byTf as Record<TF, TFData>;
 
@@ -153,22 +191,66 @@ export function buildSnapshot(parsed: { pair: string; price: number; time: strin
     if (b.score > 0) aggBull += b.score * w;
     else aggBear += -b.score * w;
   }
-  const aggScore = ((aggBull - aggBear) / Math.max(1, totalW)) * 100;
+  const rawScore = ((aggBull - aggBear) / Math.max(1, totalW)) * 100;
 
-  let side: SignalSide = "NEUTRAL";
-  if (aggScore > 12) side = "BUY";
-  else if (aggScore < -12) side = "SELL";
+  // EMA smoothing of aggregate score to dampen tick-to-tick noise.
+  state.smoothedScore = state.smoothedScore === 0
+    ? rawScore
+    : state.smoothedScore + SMOOTHING_ALPHA * (rawScore - state.smoothedScore);
+  const smoothed = state.smoothedScore;
 
-  // Confluence: count of TFs aligned with main side
-  const confluence = biases.filter((b) => b.side === side && side !== "NEUTRAL").length;
+  // ── Pending side calculation with hysteresis ──
+  // If we're already in a side, only exit when smoothed score collapses below EXIT_SCORE.
+  // If we're NEUTRAL (or in opposite side), require crossing ENTER_SCORE.
+  const currentSide = state.confirmedSide;
+  const confluenceBuy = biases.filter((b) => b.side === "BUY").length;
+  const confluenceSell = biases.filter((b) => b.side === "SELL").length;
 
-  // Tier
-  const conf = Math.min(100, Math.abs(aggScore) * 1.4);
-  let tier: TradeSignal["tier"] = "WATCH";
+  let pending: SignalSide;
+  if (currentSide === "BUY") {
+    if (smoothed > EXIT_SCORE && confluenceBuy >= 2) pending = "BUY";
+    else if (smoothed < -ENTER_SCORE && confluenceSell >= MIN_CONFLUENCE_ENTER) pending = "SELL";
+    else pending = "NEUTRAL";
+  } else if (currentSide === "SELL") {
+    if (smoothed < -EXIT_SCORE && confluenceSell >= 2) pending = "SELL";
+    else if (smoothed > ENTER_SCORE && confluenceBuy >= MIN_CONFLUENCE_ENTER) pending = "BUY";
+    else pending = "NEUTRAL";
+  } else {
+    if (smoothed > ENTER_SCORE && confluenceBuy >= MIN_CONFLUENCE_ENTER) pending = "BUY";
+    else if (smoothed < -ENTER_SCORE && confluenceSell >= MIN_CONFLUENCE_ENTER) pending = "SELL";
+    else pending = "NEUTRAL";
+  }
+
+  // ── N-tick confirmation ──
+  if (pending === state.pendingSide) {
+    state.pendingTicks += 1;
+  } else {
+    state.pendingSide = pending;
+    state.pendingTicks = 1;
+  }
+
+  const ticksRequired = pending === "NEUTRAL" ? TICKS_TO_CONFIRM_NEUTRAL : TICKS_TO_CONFIRM_FLIP;
+  if (pending !== state.confirmedSide && state.pendingTicks >= ticksRequired) {
+    state.confirmedSide = pending;
+    state.confirmedSince = Date.now();
+    state.lastChangeAt = Date.now();
+  }
+
+  const side: SignalSide = state.confirmedSide;
+  const confluence = side === "BUY" ? confluenceBuy : side === "SELL" ? confluenceSell : 0;
+
+  // Confidence: blend of |smoothed score|, confluence, and how long the side has been confirmed.
+  const scoreConf = Math.min(100, Math.abs(smoothed) * 1.5);
+  const confluenceConf = (confluence / 7) * 100;
+  const stabilityBonus = Math.min(15, (Date.now() - state.confirmedSince) / 4000); // up to +15 over time
+  const conf = Math.min(100, Math.round(scoreConf * 0.55 + confluenceConf * 0.45 + stabilityBonus));
+
+  let tier: TradeSignal["tier"];
   if (side === "NEUTRAL") tier = "NEUTRAL";
-  else if (confluence >= 5 && conf >= 60) tier = "STRONG";
-  else if (confluence >= 3 && conf >= 35) tier = "MODERATE";
+  else if (confluence >= 5 && conf >= 70) tier = "STRONG";
+  else if (confluence >= 3 && conf >= 45) tier = "MODERATE";
   else tier = "WATCH";
+  state.confirmedTier = tier;
 
   // Entry/SL/TP from M15 ATR & pivots
   const m15 = byTf.M15 ?? byTf.H1 ?? byTf.M30;
@@ -200,16 +282,23 @@ export function buildSnapshot(parsed: { pair: string; price: number; time: strin
   const reasoning: string[] = [];
   if (side !== "NEUTRAL") {
     const aligned = biases.filter((b) => b.side === side);
-    reasoning.push(`${confluence}/${biases.length} timeframes aligned ${side}`);
+    reasoning.push(`${confluence}/${biases.length} timeframes confirmed ${side}`);
     const top = aligned.slice(0, 3).map((b) => `${b.tf} ${b.score.toFixed(0)}%`).join(" · ");
     if (top) reasoning.push(`Strongest: ${top}`);
+    const heldSec = Math.round((Date.now() - state.confirmedSince) / 1000);
+    if (heldSec > 0) reasoning.push(`Signal locked for ${heldSec}s · smoothed score ${smoothed.toFixed(0)}`);
     const d1 = byTf.D1;
     if (d1?.superTrendDir === (side === "BUY" ? "UP" : "DOWN")) reasoning.push("D1 SuperTrend confirms");
     if (d1?.cloudPos === (side === "BUY" ? "ABOVE_CLOUD" : "BELOW_CLOUD")) reasoning.push("D1 Ichimoku cloud confirms");
     const m15b = biases.find((b) => b.tf === "M15");
     if (m15b && m15b.side === side) reasoning.push(`M15 momentum aligned (${m15b.score.toFixed(0)}%)`);
   } else {
-    reasoning.push("Mixed signals across timeframes — wait for confluence");
+    if (state.pendingSide !== "NEUTRAL") {
+      reasoning.push(`Pending ${state.pendingSide} — needs ${ticksRequired - state.pendingTicks} more confirms`);
+    } else {
+      reasoning.push("Mixed signals across timeframes — wait for confluence");
+    }
+    reasoning.push(`Smoothed score ${smoothed.toFixed(1)} (enter ±${ENTER_SCORE})`);
   }
 
   // Trend strength: avg ADX higher TFs
@@ -235,8 +324,19 @@ export function buildSnapshot(parsed: { pair: string; price: number; time: strin
     reasoning,
     confluence,
     timeframe: "M15",
-    timestamp: Date.now(),
+    timestamp: state.confirmedSince || Date.now(),
   };
+
+  // Feed staleness — parse "YYYY.MM.DD HH:MM" UTC.
+  let feedAgeSec = 0;
+  if (parsed.time) {
+    const m = parsed.time.match(/(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
+    if (m) {
+      const fed = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+      feedAgeSec = Math.max(0, Math.round((Date.now() - fed) / 1000));
+    }
+  }
+  state.lastFeedTime = parsed.time;
 
   return {
     price,
@@ -249,5 +349,11 @@ export function buildSnapshot(parsed: { pair: string; price: number; time: strin
     volatility: atr,
     marketRegime,
     fetchedAt: Date.now(),
+    rawScore,
+    smoothedScore: smoothed,
+    pendingSide: state.pendingSide,
+    pendingTicks: state.pendingTicks,
+    ticksRequired,
+    feedAgeSec,
   };
 }
