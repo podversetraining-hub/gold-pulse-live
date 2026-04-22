@@ -40,7 +40,12 @@ function LiveDashboard() {
             >
               {/* Top row: signal banner spans all 3 columns */}
               <div className="col-span-3">
-                <SignalBanner signal={snapshot.signal} trendStrength={snapshot.trendStrength} />
+                <SignalBanner
+                  signal={snapshot.signal}
+                  trendStrength={snapshot.trendStrength}
+                  snapshot={snapshot}
+                  feedStatus={status}
+                />
               </div>
 
               {/* Middle row */}
