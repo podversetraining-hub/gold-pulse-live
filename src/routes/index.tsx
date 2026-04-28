@@ -22,7 +22,7 @@ export const Route = createFileRoute("/")({
 });
 
 function LiveDashboard() {
-  const { snapshot, history, status, error } = useGoldFeed(1000);
+  const { snapshot, history, status, error, frameId } = useGoldFeed(1000);
 
   return (
     <div className="w-screen h-screen overflow-hidden text-foreground relative">
@@ -77,7 +77,7 @@ function LiveDashboard() {
               </div>
             </div>
 
-            <StatusFooter snapshot={snapshot} history={history} />
+            <StatusFooter snapshot={snapshot} history={history} frameId={frameId} />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-4">
