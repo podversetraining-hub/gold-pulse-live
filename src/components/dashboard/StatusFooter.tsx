@@ -5,9 +5,10 @@ import type { MarketSnapshot } from "@/lib/gold/types";
 interface Props {
   snapshot: MarketSnapshot;
   history: { t: number; price: number }[];
+  frameId?: number;
 }
 
-export function StatusFooter({ snapshot, history }: Props) {
+export function StatusFooter({ snapshot, history, frameId }: Props) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 500);
@@ -56,6 +57,11 @@ export function StatusFooter({ snapshot, history }: Props) {
           </div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">Server: {snapshot.time}</div>
           <div className="text-xs text-muted-foreground uppercase tracking-wider">Regime: <span className="text-gold font-bold">{snapshot.marketRegime.replace("_", " ")}</span></div>
+          {frameId !== undefined && (
+            <div className="text-xs text-muted-foreground uppercase tracking-wider">
+              Sync Frame: <span className="text-gold font-mono font-bold tabular-nums">#{frameId}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-6">
           <div className="text-xs">
