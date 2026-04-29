@@ -151,7 +151,10 @@ async function ensureFresh(): Promise<void> {
 }
 
 export const getSharedFrame = createServerFn({ method: "GET" })
-  .inputValidator((input: { requestId?: string } | undefined) => ({ requestId: input?.requestId ?? "" }))
+  .inputValidator((input: unknown) => {
+    const value = input && typeof input === "object" && "requestId" in input ? input.requestId : "";
+    return { requestId: typeof value === "string" ? value : "" };
+  })
   .handler(async () => {
     setResponseHeaders({
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
