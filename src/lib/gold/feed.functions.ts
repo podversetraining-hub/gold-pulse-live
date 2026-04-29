@@ -45,14 +45,12 @@ function withLiveQuery(url: string): string {
 }
 
 async function fetchRawFeed(): Promise<{ ok: true; raw: string } | { ok: false; error: string }> {
-  const errors: string[] = [];
   const liveUrl = withLiveQuery(FEED_URL);
-  for (const build of PROXIES) {
-    const url = build(liveUrl);
-    const raw = await tryFetch(url);
-    if (raw) return { ok: true, raw };
-    errors.push(url.slice(0, 60));
-  }
+  const urls = PROXIES.map((build) => build(liveUrl));
+  const results = await Promise.all(urls.map(async (url) => ({ url, raw: await tryFetch(url) })));
+  const hit = results.find((result) => result.raw);
+  if (hit?.raw) return { ok: true, raw: hit.raw };
+  const errors = urls.map((url) => url.slice(0, 60));
   return { ok: false, error: `All sources failed: ${errors.join(" | ")}` };
 }
 
