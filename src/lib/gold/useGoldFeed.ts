@@ -34,6 +34,12 @@ const RPC_TIMEOUT_MS = 6500;
 const DISPLAY_RELOAD_AFTER_MS = 45000;
 const DISPLAY_RELOAD_COOLDOWN_MS = 60000;
 const DISPLAY_RELOAD_KEY = "gold-feed-display-watchdog-reload-at";
+// Layer 2: silent hourly browser refresh. The server stream keeps running
+// 24/7 — only the client DOM/JS is recycled to avoid long-lived memory
+// leaks, detached timers, or browser-level freezes (OBS, embedded WebView).
+const HOURLY_RELOAD_MS = 60 * 60 * 1000;
+const HOURLY_RELOAD_JITTER_MS = 30 * 1000;
+const HIDDEN_RELOAD_GRACE_MS = 5 * 60 * 1000;
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise((resolve, reject) => {
