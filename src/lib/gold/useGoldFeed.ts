@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getSharedFrame } from "./feed.functions";
 import type { MarketSnapshot } from "./types";
 
 interface PriceTick {
   t: number;
   price: number;
+}
+
+export interface FeedSourceStat {
+  host: string;
+  ok: number;
+  fail: number;
+  lastMs: number;
 }
 
 export interface LiveData {
@@ -14,6 +21,10 @@ export interface LiveData {
   status: "loading" | "live" | "error" | "stale";
   error?: string;
   frameId: number;
+  heartbeat: number;
+  source?: string;
+  sources: FeedSourceStat[];
+  refresh: () => void;
 }
 
 const FETCH_WATCHDOG_MS = 6000;
@@ -32,6 +43,9 @@ export function useGoldFeed(pollMs = 1000): LiveData {
   const [error, setError] = useState<string>();
   const [lastUpdate, setLastUpdate] = useState<number>(0);
   const [frameId, setFrameId] = useState<number>(0);
+  const [heartbeat, setHeartbeat] = useState<number>(0);
+  const [source, setSource] = useState<string | undefined>(undefined);
+  const [sources, setSources] = useState<FeedSourceStat[]>([]);
   const inflightRef = useRef(false);
   const inflightStartedRef = useRef(0);
   const lastSuccessRef = useRef(0);
@@ -40,6 +54,8 @@ export function useGoldFeed(pollMs = 1000): LiveData {
   const lastServerTimeRef = useRef(0);
   const timerRef = useRef<number | undefined>(undefined);
   const attemptRef = useRef(0);
+  const forceRef = useRef(false);
+  const tickRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let alive = true;
@@ -68,8 +84,10 @@ export function useGoldFeed(pollMs = 1000): LiveData {
       }
       inflightRef.current = true;
       inflightStartedRef.current = Date.now();
+      const force = forceRef.current;
+      forceRef.current = false;
       try {
-        const frame = await getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}` } });
+        const frame = await getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}`, force } });
         if (!alive) return;
 
         if (frame.snapshot) {
@@ -82,16 +100,22 @@ export function useGoldFeed(pollMs = 1000): LiveData {
             setSnapshot(frame.snapshot);
             setHistory(frame.history);
             setFrameId(frame.frameId);
+            setSource(frame.source);
             const now = Date.now();
             setLastUpdate(now);
             lastSuccessRef.current = now;
             lastFrameAtRef.current = now;
           }
+          // heartbeat/sources update every poll, even without a new frame
+          setHeartbeat(frame.heartbeat ?? 0);
+          if (frame.sources) setSources(frame.sources);
           attemptRef.current = 0;
           setStatus(frame.snapshot.feedAgeSec > 90 ? "stale" : "live");
           setError(frame.error);
         } else {
           attemptRef.current += 1;
+          setHeartbeat(frame.heartbeat ?? 0);
+          if (frame.sources) setSources(frame.sources);
           if (Date.now() - lastSuccessRef.current > STALE_AFTER_MS) setStatus("stale");
           setError(frame.error ?? "Awaiting first frame");
         }
@@ -106,6 +130,7 @@ export function useGoldFeed(pollMs = 1000): LiveData {
         schedule(attemptRef.current ? backoff : pollMs);
       }
     };
+    tickRef.current = tick;
 
     const recover = () => {
       if (!alive) return;
@@ -145,5 +170,10 @@ export function useGoldFeed(pollMs = 1000): LiveData {
     };
   }, [pollMs]);
 
-  return { snapshot, history, lastUpdate, status, error, frameId };
+  const refresh = useCallback(() => {
+    forceRef.current = true;
+    void tickRef.current();
+  }, []);
+
+  return { snapshot, history, lastUpdate, status, error, frameId, heartbeat, source, sources, refresh };
 }
