@@ -37,6 +37,7 @@ export function useGoldFeed(pollMs = 1000): LiveData {
   const lastSuccessRef = useRef(0);
   const lastFrameAtRef = useRef(0);
   const lastFrameIdRef = useRef(0);
+  const lastServerTimeRef = useRef(0);
   const timerRef = useRef<number | undefined>(undefined);
   const attemptRef = useRef(0);
 
@@ -75,8 +76,9 @@ export function useGoldFeed(pollMs = 1000): LiveData {
           // Only update React state when the server frame actually advanced —
           // this guarantees every browser renders the SAME frameId at the
           // SAME moment (true mirror behaviour).
-          if (frame.frameId !== lastFrameIdRef.current) {
+          if (frame.serverTime > lastServerTimeRef.current) {
             lastFrameIdRef.current = frame.frameId;
+            lastServerTimeRef.current = frame.serverTime;
             setSnapshot(frame.snapshot);
             setHistory(frame.history);
             setFrameId(frame.frameId);
