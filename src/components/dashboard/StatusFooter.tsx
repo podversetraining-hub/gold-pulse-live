@@ -9,10 +9,9 @@ interface Props {
   heartbeat?: number;
   source?: string;
   sources?: { host: string; ok: number; fail: number; lastMs: number }[];
-  onRefresh?: () => void;
 }
 
-export function StatusFooter({ snapshot, history, frameId, heartbeat, source, sources, onRefresh }: Props) {
+export function StatusFooter({ snapshot, history, frameId, heartbeat, source, sources }: Props) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 500);
@@ -96,16 +95,6 @@ export function StatusFooter({ snapshot, history, frameId, heartbeat, source, so
               {oneMinChange.abs >= 0 ? "+" : ""}{fmtPrice(oneMinChange.abs)} ({oneMinChange.pct >= 0 ? "+" : ""}{oneMinChange.pct.toFixed(3)}%)
             </span>
           </div>
-          {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="text-[11px] uppercase tracking-[0.2em] text-gold border border-gold/40 hover:bg-gold/10 px-3 py-1 rounded-md font-bold transition"
-              title="Force a fresh fetch from all sources right now"
-            >
-              ↻ Refresh
-            </button>
-          )}
           <div className="text-xs text-muted-foreground uppercase tracking-wider">Powered by 80+ indicators · 7 timeframes</div>
         </div>
       </div>
