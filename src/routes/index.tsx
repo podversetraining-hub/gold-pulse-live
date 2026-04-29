@@ -22,7 +22,7 @@ export const Route = createFileRoute("/")({
 });
 
 function LiveDashboard() {
-  const { snapshot, history, status, error, frameId, heartbeat, source, sources, refresh } = useGoldFeed(1000);
+  const { snapshot, history, status, error, frameId, heartbeat, source, sources } = useGoldFeed(1000);
 
   return (
     <div className="w-screen h-screen overflow-hidden text-foreground relative">
@@ -84,7 +84,6 @@ function LiveDashboard() {
               heartbeat={heartbeat}
               source={source}
               sources={sources}
-              onRefresh={refresh}
             />
           </>
         ) : (

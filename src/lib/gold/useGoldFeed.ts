@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSharedFrame } from "./feed.functions";
 import type { MarketSnapshot } from "./types";
 
@@ -24,7 +24,6 @@ export interface LiveData {
   heartbeat: number;
   source?: string;
   sources: FeedSourceStat[];
-  refresh: () => void;
 }
 
 const FETCH_WATCHDOG_MS = 6000;
@@ -54,8 +53,6 @@ export function useGoldFeed(pollMs = 1000): LiveData {
   const lastServerTimeRef = useRef(0);
   const timerRef = useRef<number | undefined>(undefined);
   const attemptRef = useRef(0);
-  const forceRef = useRef(false);
-  const tickRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let alive = true;
@@ -84,10 +81,8 @@ export function useGoldFeed(pollMs = 1000): LiveData {
       }
       inflightRef.current = true;
       inflightStartedRef.current = Date.now();
-      const force = forceRef.current;
-      forceRef.current = false;
       try {
-        const frame = await getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}`, force } });
+        const frame = await getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}` } });
         if (!alive) return;
 
         if (frame.snapshot) {
@@ -130,7 +125,6 @@ export function useGoldFeed(pollMs = 1000): LiveData {
         schedule(attemptRef.current ? backoff : pollMs);
       }
     };
-    tickRef.current = tick;
 
     const recover = () => {
       if (!alive) return;
@@ -170,10 +164,5 @@ export function useGoldFeed(pollMs = 1000): LiveData {
     };
   }, [pollMs]);
 
-  const refresh = useCallback(() => {
-    forceRef.current = true;
-    void tickRef.current();
-  }, []);
-
-  return { snapshot, history, lastUpdate, status, error, frameId, heartbeat, source, sources, refresh };
+  return { snapshot, history, lastUpdate, status, error, frameId, heartbeat, source, sources };
 }

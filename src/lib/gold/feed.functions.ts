@@ -212,17 +212,17 @@ export const getSharedFrame = createServerFn({ method: "GET" })
   .inputValidator((input: unknown) => {
     const obj = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
     const reqId = typeof obj.requestId === "string" ? obj.requestId : "";
-    const force = obj.force === true;
-    return { requestId: reqId, force };
+    return { requestId: reqId };
   })
-  .handler(async ({ data }) => {
+  .handler(async () => {
     setResponseHeaders({
       "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       Pragma: "no-cache",
       Expires: "0",
     });
+    ensureServerHeartbeat();
     try {
-      await ensureFresh(data.force === true);
+      await ensureFresh();
     } catch (e) {
       sharedState.frame = {
         ...sharedState.frame,
@@ -246,3 +246,17 @@ export const getSharedFrame = createServerFn({ method: "GET" })
       error: sharedState.frame.lastError,
     };
   });
+
+// ────────────────────────────────────────────────────────────────────────
+// Server-side heartbeat: a single setInterval kept alive in the worker
+// process. As long as ANY request has hit the server, the heartbeat keeps
+// the snapshot fresh independently of browsers — making the system a true
+// 24/7 central broadcaster. Browsers only mirror; they never drive updates.
+// ────────────────────────────────────────────────────────────────────────
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+function ensureServerHeartbeat() {
+  if (heartbeatTimer) return;
+  heartbeatTimer = setInterval(() => {
+    void ensureFresh().catch(() => {});
+  }, REFRESH_MS);
+}
