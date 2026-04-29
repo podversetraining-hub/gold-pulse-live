@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { setResponseHeaders } from "@tanstack/react-start/server";
 import { parseFeed } from "./parser";
 import { buildSnapshot, createEngineState, type SignalEngineState } from "./signal";
 import type { MarketSnapshot } from "./types";
@@ -23,28 +24,33 @@ const BROWSER_HEADERS: Record<string, string> = {
 };
 
 async function tryFetch(url: string): Promise<string | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 3500);
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 3500);
-    const res = await fetch(url, { headers: BROWSER_HEADERS, signal: ctrl.signal });
-    clearTimeout(timer);
+    const res = await fetch(url, { headers: BROWSER_HEADERS, signal: ctrl.signal, cache: "no-store" });
     if (!res.ok) return null;
     const txt = await res.text();
     if (txt.includes("XAUUSDm") && txt.includes("Timeframe")) return txt;
     return null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
+function withLiveQuery(url: string): string {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}ts=${Date.now()}`;
+}
+
 async function fetchRawFeed(): Promise<{ ok: true; raw: string } | { ok: false; error: string }> {
-  const errors: string[] = [];
-  for (const build of PROXIES) {
-    const url = build(FEED_URL);
-    const raw = await tryFetch(url);
-    if (raw) return { ok: true, raw };
-    errors.push(url.slice(0, 60));
-  }
+  const liveUrl = withLiveQuery(FEED_URL);
+  const urls = PROXIES.map((build) => build(liveUrl));
+  const results = await Promise.all(urls.map(async (url) => ({ url, raw: await tryFetch(url) })));
+  const hit = results.find((result) => result.raw);
+  if (hit?.raw) return { ok: true, raw: hit.raw };
+  const errors = urls.map((url) => url.slice(0, 60));
   return { ok: false, error: `All sources failed: ${errors.join(" | ")}` };
 }
 
@@ -144,22 +150,32 @@ async function ensureFresh(): Promise<void> {
   await sharedState.inflight;
 }
 
-export const getSharedFrame = createServerFn({ method: "GET" }).handler(async () => {
-  try {
-    await ensureFresh();
-  } catch (e) {
-    sharedState.frame = {
-      ...sharedState.frame,
-      lastError: e instanceof Error ? e.message : "unknown",
-      serverTime: Date.now(),
+export const getSharedFrame = createServerFn({ method: "GET" })
+  .inputValidator((input: unknown) => {
+    const value = input && typeof input === "object" && "requestId" in input ? input.requestId : "";
+    return { requestId: typeof value === "string" ? value : "" };
+  })
+  .handler(async () => {
+    setResponseHeaders({
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      Pragma: "no-cache",
+      Expires: "0",
+    });
+    try {
+      await ensureFresh();
+    } catch (e) {
+      sharedState.frame = {
+        ...sharedState.frame,
+        lastError: e instanceof Error ? e.message : "unknown",
+        serverTime: Date.now(),
+      };
+    }
+    return {
+      snapshot: sharedState.frame.snapshot,
+      history: sharedState.frame.history,
+      lastSuccessAt: sharedState.frame.lastSuccessAt,
+      serverTime: sharedState.frame.serverTime || Date.now(),
+      frameId: sharedState.frame.frameId,
+      error: sharedState.frame.lastError,
     };
-  }
-  return {
-    snapshot: sharedState.frame.snapshot,
-    history: sharedState.frame.history,
-    lastSuccessAt: sharedState.frame.lastSuccessAt,
-    serverTime: sharedState.frame.serverTime || Date.now(),
-    frameId: sharedState.frame.frameId,
-    error: sharedState.frame.lastError,
-  };
-});
+  });
