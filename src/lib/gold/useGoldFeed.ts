@@ -85,7 +85,9 @@ export function useGoldFeed(pollMs = 1000): LiveData {
         const lastReload = Number(window.sessionStorage.getItem(DISPLAY_RELOAD_KEY) || "0");
         if (now - lastReload < DISPLAY_RELOAD_COOLDOWN_MS) return;
         window.sessionStorage.setItem(DISPLAY_RELOAD_KEY, String(now));
-      } catch {}
+      } catch {
+        // Session storage can be unavailable in locked-down broadcast browsers.
+      }
       setError(`Display watchdog recovery: ${reason}`);
       window.setTimeout(() => window.location.reload(), 250);
     };
