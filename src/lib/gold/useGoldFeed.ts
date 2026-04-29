@@ -109,8 +109,12 @@ export function useGoldFeed(pollMs = 1000): LiveData {
 
     const recover = () => {
       if (!alive) return;
-      if (inflightRef.current && Date.now() - inflightStartedRef.current > FETCH_WATCHDOG_MS) {
-        inflightRef.current = false;
+      if (inflightRef.current) {
+        if (Date.now() - inflightStartedRef.current > FETCH_WATCHDOG_MS) {
+          inflightRef.current = false;
+        } else {
+          return;
+        }
       }
       clearTimer();
       void tick();
