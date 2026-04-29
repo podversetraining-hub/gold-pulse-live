@@ -30,6 +30,20 @@ const FETCH_WATCHDOG_MS = 6000;
 const STALE_AFTER_MS = 8000;
 const FRAME_STALL_MS = 12000;
 const MAX_BACKOFF_MS = 5000;
+const RPC_TIMEOUT_MS = 6500;
+const DISPLAY_RELOAD_AFTER_MS = 45000;
+const DISPLAY_RELOAD_COOLDOWN_MS = 60000;
+const DISPLAY_RELOAD_KEY = "gold-feed-display-watchdog-reload-at";
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Frame request timed out")), timeoutMs);
+    promise
+      .then(resolve)
+      .catch(reject)
+      .finally(() => window.clearTimeout(timer));
+  });
+}
 
 // ────────────────────────────────────────────────────────────────────────
 // Mirror hook: every browser polls the SAME centralized server endpoint
@@ -56,11 +70,24 @@ export function useGoldFeed(pollMs = 1000): LiveData {
 
   useEffect(() => {
     let alive = true;
+    const startedAt = Date.now();
     const clearTimer = () => {
       if (timerRef.current !== undefined) {
         window.clearTimeout(timerRef.current);
         timerRef.current = undefined;
       }
+    };
+
+    const reloadDisplay = (reason: string) => {
+      if (!alive) return;
+      const now = Date.now();
+      try {
+        const lastReload = Number(window.sessionStorage.getItem(DISPLAY_RELOAD_KEY) || "0");
+        if (now - lastReload < DISPLAY_RELOAD_COOLDOWN_MS) return;
+        window.sessionStorage.setItem(DISPLAY_RELOAD_KEY, String(now));
+      } catch {}
+      setError(`Display watchdog recovery: ${reason}`);
+      window.setTimeout(() => window.location.reload(), 250);
     };
 
     const schedule = (delay = pollMs) => {
@@ -82,7 +109,10 @@ export function useGoldFeed(pollMs = 1000): LiveData {
       inflightRef.current = true;
       inflightStartedRef.current = Date.now();
       try {
-        const frame = await getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}` } });
+        const frame = await withTimeout(
+          getSharedFrame({ data: { requestId: `${Date.now()}-${attemptRef.current}` } }),
+          RPC_TIMEOUT_MS,
+        );
         if (!alive) return;
 
         if (frame.snapshot) {
@@ -142,11 +172,18 @@ export function useGoldFeed(pollMs = 1000): LiveData {
     void tick();
     const staleCheck = setInterval(() => {
       if (!alive) return;
+      const now = Date.now();
       if (lastSuccessRef.current && Date.now() - lastSuccessRef.current > STALE_AFTER_MS) {
         setStatus((s) => (s === "live" ? "stale" : s));
       }
-      if (lastFrameAtRef.current && Date.now() - lastFrameAtRef.current > FRAME_STALL_MS) {
+      if (lastFrameAtRef.current && now - lastFrameAtRef.current > FRAME_STALL_MS) {
         recover();
+      }
+      if (lastFrameAtRef.current && now - lastFrameAtRef.current > DISPLAY_RELOAD_AFTER_MS) {
+        reloadDisplay("server frame stalled");
+      }
+      if (!lastFrameAtRef.current && now - startedAt > DISPLAY_RELOAD_AFTER_MS) {
+        reloadDisplay("first frame unavailable");
       }
     }, 1000);
     window.addEventListener("focus", recover);
