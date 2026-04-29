@@ -198,10 +198,51 @@ export function useGoldFeed(pollMs = 1000): LiveData {
     window.addEventListener("online", recover);
     window.addEventListener("pageshow", recover);
     document.addEventListener("visibilitychange", recover);
+
+    // ── Layer 2: hourly silent refresh ──────────────────────────────────
+    // We schedule a reload ~1h after mount (with small jitter so multiple
+    // mirrors don't reload at the exact same second). The reload is
+    // deferred until the tab is hidden OR until a hard deadline, so a
+    // live viewer never sees a flash. The centralized server stream is
+    // untouched — chart/signal state is restored from the server frame
+    // immediately on the next poll after reload.
+    const hourlyDelay = HOURLY_RELOAD_MS + Math.floor(Math.random() * HOURLY_RELOAD_JITTER_MS);
+    let hardDeadlineTimer: number | undefined;
+    let hiddenWatcher: number | undefined;
+    const performHourlyReload = () => {
+      if (!alive) return;
+      try {
+        window.sessionStorage.setItem(DISPLAY_RELOAD_KEY, String(Date.now()));
+      } catch {
+        // ignore
+      }
+      window.location.reload();
+    };
+    const hourlyTimer = window.setTimeout(() => {
+      if (!alive) return;
+      // If tab is already hidden, reload immediately — viewer sees nothing.
+      if (document.visibilityState === "hidden") {
+        performHourlyReload();
+        return;
+      }
+      // Otherwise wait for the next "hidden" moment, but cap the wait so
+      // a permanently-foregrounded broadcast browser still recycles.
+      hiddenWatcher = window.setInterval(() => {
+        if (!alive) return;
+        if (document.visibilityState === "hidden") {
+          performHourlyReload();
+        }
+      }, 5000);
+      hardDeadlineTimer = window.setTimeout(performHourlyReload, HIDDEN_RELOAD_GRACE_MS);
+    }, hourlyDelay);
+
     return () => {
       alive = false;
       clearTimer();
       clearInterval(staleCheck);
+      window.clearTimeout(hourlyTimer);
+      if (hardDeadlineTimer !== undefined) window.clearTimeout(hardDeadlineTimer);
+      if (hiddenWatcher !== undefined) window.clearInterval(hiddenWatcher);
       window.removeEventListener("focus", recover);
       window.removeEventListener("online", recover);
       window.removeEventListener("pageshow", recover);
